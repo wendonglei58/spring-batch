@@ -5,24 +5,22 @@ import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.FlowBuilder;
 import org.springframework.batch.core.job.flow.Flow;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
-import org.springframework.batch.item.file.mapping.FieldSetMapper;
-import org.springframework.batch.item.file.transform.FieldSet;
 import org.springframework.batch.item.xml.StaxEventItemReader;
 import org.springframework.batch.item.xml.builder.StaxEventItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.Resource;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
-import org.springframework.oxm.Unmarshaller;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import wlei.spring.cloud.batch.domain.Transaction;
 import wlei.spring.cloud.batch.multiThreaded.MultiThreadedJobApplication;
@@ -45,27 +43,16 @@ public class ParallelBatchJobConfiguration {
     @Autowired
     JdbcBatchItemWriter<Transaction> jdbcBatchItemWriter;
 
-    @Bean
-    public FlatFileItemReader<Transaction> flatFileReader(@Value("#{jobParameters['inputFlatFiles']}")Resource file) {
-        return new FlatFileItemReaderBuilder<Transaction>()
-                .resource(file)
-                .name("delimitedReader")
-                .delimited().names("account", "amount", "timestamp")
-                .fieldSetMapper(fieldSet -> {
-                    Transaction tran = new Transaction();
-                    tran.setAccount(fieldSet.readString("account"));
-                    tran.setAmount(fieldSet.readBigDecimal("amount"));
-                    tran.setTimestamp(fieldSet.readDate("timestamp"));
-                    return tran;
-                }).build();
-    }
+    @Autowired
+    FlatFileItemReader<Transaction> flatFileItemReader;
 
     @Bean
+    @StepScope
     public StaxEventItemReader<Transaction> xmlFileReader(@Value("#{jobParameters['inputXmlFile']}") Resource file) {
         Jaxb2Marshaller unmarshaller = new Jaxb2Marshaller();
         unmarshaller.setClassesToBeBound(Transaction.class);
 
-        return new StaxEventItemReaderBuilder()
+        return new StaxEventItemReaderBuilder<Transaction>()
                 .name("xmlReader")
                 .resource(file)
                 .addFragmentRootElements("transaction")
@@ -77,7 +64,7 @@ public class ParallelBatchJobConfiguration {
     public Step step() {
         return this.stepBuilderFactory.get("flat-to-db")
                 .<Transaction, Transaction>chunk(100)
-                .reader(flatFileReader(null))
+                .reader(this.flatFileItemReader)
                 .writer(this.jdbcBatchItemWriter)
                 .build();
     }
@@ -104,5 +91,11 @@ public class ParallelBatchJobConfiguration {
                 .start(parallelFlow)
                 .end()
                 .build();
+    }
+
+    public static void main(String[] args) {
+        String[] newArgs = new String[]{"inputFlatFile=/data/csv/bigtransactions.csv",
+                "inputXmlFile=data/xml/bigtransactions.xml"};
+        SpringApplication.run(ParallelBatchJobConfiguration.class, newArgs);
     }
 }

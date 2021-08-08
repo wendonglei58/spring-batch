@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.Resource;
 import org.springframework.core.task.TaskExecutor;
@@ -39,8 +40,7 @@ import javax.sql.DataSource;
  * @version 1.0
  * @since 7/24/2021
  **/
-@SpringBootApplication
-@EnableBatchProcessing
+@Configuration
 public class MultiThreadedJobApplication {
     @Autowired
     JobBuilderFactory jobBuilderFactory;
